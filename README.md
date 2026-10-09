@@ -1,7 +1,8 @@
 # weHateTP
 
-**TypeBot + GitHub Actions OIDC + inject**  
-By DarkFox
+**TypeBot · weHateTP** – By DarkFox
+
+Typewriter effect, TypeBot browser inject, PyPI Trusted Publishing via OIDC.
 
 ## Install
 
@@ -9,30 +10,17 @@ By DarkFox
 pip install -e .
 ```
 
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `weHateTP start` | Inject + generate Actions workflow |
-| `weHateTP inject` | TypeBot overlay script (y/n + 3-2-1) |
-| `weHateTP connect` | Generate OIDC GitHub Actions workflow |
-| `weHateTP type` | Typewriter effect |
-| `weHateTP warn` | Big colored 3-2-1 countdown |
-| `weHateTP detect` | Auto-detect Git context |
-| `weHateTP init` | Write weHateTP.yml |
-
-## TypeBot inject
+## Start
 
 ```bash
-weHateTP inject
+weHateTP start
 ```
 
-Paste the script into the browser console (F12).  
-Red **TypeBot** box top-right, **By DarkFox** below, visible 5 seconds.
+Full flow: banner → weHateTP.yml → y/n inject → 3-2-1 → inject script → PyPI OIDC workflows.
 
-## GitHub Actions OIDC
+## PyPI OIDC
 
-Workflow at `.github/workflows/oidc-deploy.yml`.  
-Set your AWS role ARN in `weHateTP.yml` → `oidc.role_arn`.
-
-Repo: https://github.com/SlabyLol/weHateTP
+1. https://pypi.org/manage/account/publishing/
+2. Owner=SlabyLol Repo=weHateTP Workflow=publish-pypi.yml Environment=pypi
+3. GitHub Environment `pypi`
+4. Create a Release → publishes via OIDC

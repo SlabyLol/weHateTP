@@ -13,8 +13,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -23,7 +22,7 @@ jobs:
           role-session-name: weHateTP-session
           aws-region: us-east-1
 
-      - name: Example – whoami
+      - name: Verify identity
         run: |
-          echo "OIDC identity assumed successfully"
+          echo "OIDC assumed"
           aws sts get-caller-identity || true
