@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weHateTP"
+version = "1.3.0"
+description = "TypeBot + GitHub Actions OIDC + inject – By DarkFox"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [{name = "DarkFox"}]
+keywords = ["typewriter", "typebot", "oidc", "github-actions", "inject"]
+dependencies = ["PyYAML>=6.0"]
+
+[project.scripts]
+weHateTP = "weHateTP.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["weHateTP*"]

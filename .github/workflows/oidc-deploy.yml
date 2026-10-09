@@ -1,0 +1,29 @@
+name: OIDC Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/GitHubActionsRole
+          role-session-name: weHateTP-session
+          aws-region: us-east-1
+
+      - name: Example – whoami
+        run: |
+          echo "OIDC identity assumed successfully"
+          aws sts get-caller-identity || true
