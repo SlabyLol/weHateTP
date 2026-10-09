@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build:
@@ -30,9 +31,9 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    environment: pypi
     permissions:
       id-token: write
+      contents: read
     steps:
       - uses: actions/download-artifact@v4
         with:
