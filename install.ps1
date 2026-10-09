@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# weHateTP installer - school-PC friendly (no admin required)
+# weHateTP installer - school-PC friendly (no admin) + PyPI
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
@@ -19,7 +19,7 @@ function Write-Log($Msg, $Color = "White") {
 Write-Host ""
 Write-Log "========================================" "Red"
 Write-Log "  TypeBot · weHateTP  installer" "Red"
-Write-Log "  School-PC mode · By DarkFox" "DarkGray"
+Write-Log "  School-PC + PyPI · By DarkFox" "DarkGray"
 Write-Log "========================================" "Red"
 Write-Host ""
 
@@ -45,12 +45,11 @@ function Find-Python {
     }
     $portable = Join-Path $PyDir "python.exe"
     if (Test-Path $portable) { $candidates += $portable }
-    $localPaths = @(
+    foreach ($p in @(
         (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
         (Join-Path $env:LOCALAPPDATA "Programs\Python\Python311\python.exe"),
         (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe")
-    )
-    foreach ($p in $localPaths) {
+    )) {
         if (Test-Path $p) { $candidates += $p }
     }
     foreach ($c in $candidates) {
@@ -60,18 +59,18 @@ function Find-Python {
 }
 
 function Install-PortablePython {
-    Write-Log "[..] No system Python - installing portable Python (user folder, no admin)..." "Yellow"
+    Write-Log "[..] No system Python - portable Python (user folder, no admin)..." "Yellow"
     New-Item -ItemType Directory -Path $PyDir -Force | Out-Null
     $version = "3.12.7"
     $url = "https://www.python.org/ftp/python/$version/python-$version-embed-amd64.zip"
     $zip = Join-Path $Root "python-embed.zip"
-    Write-Log "[..] Downloading Python $version embeddable..." "Cyan"
+    Write-Log "[..] Downloading Python $version..." "Cyan"
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
     } catch {
         Write-Log "[!!] Download failed: $_" "Red"
-        Write-Log "     Download Python from python.org (user install) and re-run." "Yellow"
+        Write-Log "     Install Python from python.org (user install) and re-run." "Yellow"
         exit 1
     }
     Write-Log "[..] Extracting..." "Cyan"
@@ -81,15 +80,14 @@ function Install-PortablePython {
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     $pth = Get-ChildItem -Path $PyDir -Filter "python*._pth" | Select-Object -First 1
     if ($pth) {
-        $content = Get-Content $pth.FullName
-        $content = $content | ForEach-Object {
+        $content = Get-Content $pth.FullName | ForEach-Object {
             if ($_ -match '^#\s*import site') { 'import site' } else { $_ }
         }
         if ($content -notcontains 'import site') { $content += 'import site' }
         Set-Content -Path $pth.FullName -Value $content
     }
     $getPip = Join-Path $PyDir "get-pip.py"
-    Write-Log "[..] Installing pip into portable Python..." "Cyan"
+    Write-Log "[..] Installing pip..." "Cyan"
     try {
         Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip -UseBasicParsing
         & (Join-Path $PyDir "python.exe") $getPip --no-warn-script-location 2>&1 | Out-Null
@@ -102,13 +100,13 @@ function Install-PortablePython {
         Write-Log "[!!] Portable Python does not run." "Red"
         exit 1
     }
-    Write-Log "[OK] Portable Python ready: $exe" "Green"
+    Write-Log "[OK] Portable Python: $exe" "Green"
     return $exe
 }
 
 function Install-UserPythonWinget {
     if (-not (Test-Cmd "winget")) { return $null }
-    Write-Log "[..] Trying winget user-scope Python..." "Cyan"
+    Write-Log "[..] winget user-scope Python..." "Cyan"
     try {
         winget install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -131,19 +129,15 @@ Write-Host ""
 Write-Log "[..] Upgrading pip (user)..." "Cyan"
 & $python -m pip install --upgrade pip setuptools wheel --user --no-warn-script-location 2>&1 | Out-Null
 
-Write-Log "[..] Installing PyYAML..." "Cyan"
-& $python -m pip install "PyYAML>=6.0" --user --no-warn-script-location
+Write-Log "[..] Installing weHateTP from PyPI..." "Cyan"
+$pypiOk = $false
+try {
+    & $python -m pip install --upgrade --user --no-warn-script-location "weHateTP"
+    if ($LASTEXITCODE -eq 0) { $pypiOk = $true }
+} catch {}
 
-Write-Log "[..] Installing weHateTP from GitHub..." "Cyan"
-$gitOk = $false
-if (Test-Cmd "git") {
-    try {
-        & $python -m pip install --upgrade --user --no-warn-script-location "git+https://github.com/SlabyLol/weHateTP.git"
-        if ($LASTEXITCODE -eq 0) { $gitOk = $true }
-    } catch {}
-}
-if (-not $gitOk) {
-    Write-Log "[..] git not available - downloading zip from GitHub..." "Yellow"
+if (-not $pypiOk) {
+    Write-Log "[..] PyPI failed - trying GitHub zip..." "Yellow"
     $zipPkg = Join-Path $Root "weHateTP-src.zip"
     $srcDir = Join-Path $Root "src"
     try {
@@ -153,8 +147,9 @@ if (-not $gitOk) {
         Expand-Archive -Path $zipPkg -DestinationPath $srcDir -Force
         $proj = Get-ChildItem $srcDir -Directory | Select-Object -First 1
         & $python -m pip install --user --no-warn-script-location $proj.FullName
+        if ($LASTEXITCODE -ne 0) { throw "pip install from zip failed" }
     } catch {
-        Write-Log "[!!] Install from zip failed: $_" "Red"
+        Write-Log "[!!] Install failed: $_" "Red"
         exit 1
     }
 }
@@ -179,21 +174,21 @@ if ($userPath -notlike "*$ScriptsDir*") {
     try {
         [Environment]::SetEnvironmentVariable("Path", "$ScriptsDir;$userPath", "User")
         $env:Path = "$ScriptsDir;$env:Path"
-        Write-Log "[OK] Added launcher folder to user PATH" "Green"
+        Write-Log "[OK] Launcher on user PATH" "Green"
     } catch {
-        Write-Log "[..] Could not change user PATH (policy). Use full path below." "Yellow"
+        Write-Log "[..] PATH locked by policy - use full path below" "Yellow"
     }
 }
 
 Write-Host ""
 Write-Log "========================================" "Green"
-Write-Log "  Install complete (school-PC safe)" "Green"
+Write-Log "  Install complete (school-PC + PyPI)" "Green"
 Write-Log "========================================" "Green"
 Write-Host ""
-Write-Log "Run TypeBot:" "Cyan"
+Write-Log "Run:" "Cyan"
 Write-Host "  $launcher start" -ForegroundColor White
 Write-Host "  $python -m weHateTP.cli start" -ForegroundColor White
+Write-Host "  pip install -U weHateTP" -ForegroundColor DarkGray
 Write-Host ""
-Write-Log "Files under: $Root" "DarkGray"
-Write-Log "Open a NEW terminal if weHateTP is not found yet." "DarkGray"
+Write-Log "Folder: $Root" "DarkGray"
 Write-Host ""
