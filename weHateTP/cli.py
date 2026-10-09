@@ -5,12 +5,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import (
-    generate_oidc_deploy_workflow,
-    generate_pypi_oidc_workflow,
-    load_config,
-    save_example_config,
-)
+from .config import generate_pypi_oidc_workflow, load_config, save_example_config
 from .inject import get_inject_script
 from .typewriter import Color, Typewriter, c
 from .warning import countdown_warning
@@ -62,8 +57,7 @@ def cmd_warn(args):
 
 
 def cmd_init(args):
-    path = save_example_config(args.output)
-    print(c(f"Config written: {path}", Color.GREEN, Color.BOLD))
+    print(c(f"Config written: {save_example_config(args.output)}", Color.GREEN, Color.BOLD))
     return 0
 
 
@@ -71,29 +65,28 @@ def cmd_connect(args):
     cfg = load_config(args.config)
     w = cfg.get("warning", {})
     countdown_warning(
-        message=w.get("message", "GENERATING PYPI + OIDC WORKFLOWS"),
+        message=w.get("message", "GENERATING PYPI OIDC WORKFLOW"),
         seconds=w.get("seconds", 3),
         final_message="Generating…",
     )
     out = Path(".github") / "workflows"
     out.mkdir(parents=True, exist_ok=True)
     pypi_wf = generate_pypi_oidc_workflow(cfg)
-    deploy_wf = generate_oidc_deploy_workflow(cfg)
     if args.dry_run:
         print(pypi_wf)
-        print(deploy_wf)
     else:
         (out / "publish-pypi.yml").write_text(pypi_wf, encoding="utf-8")
-        (out / "oidc-deploy.yml").write_text(deploy_wf, encoding="utf-8")
         print(c(f"Wrote {out / 'publish-pypi.yml'}", Color.GREEN, Color.BOLD))
-        print(c(f"Wrote {out / 'oidc-deploy.yml'}", Color.GREEN, Color.BOLD))
     print()
-    print(c("PyPI Trusted Publishing:", Color.CYAN, Color.BOLD))
-    print("  1. https://pypi.org/manage/account/publishing/")
-    print(f"  2. Owner={cfg.get('github', {}).get('owner', 'SlabyLol')} Repo={cfg.get('github', {}).get('repo', 'weHateTP')}")
-    print("     Workflow=publish-pypi.yml Environment=pypi")
-    print("  3. GitHub Environment named pypi")
-    print("  4. Create a Release -> publishes via OIDC")
+    print(c("PyPI Trusted Publishing – EXACT values:", Color.CYAN, Color.BOLD))
+    print("  https://pypi.org/manage/account/publishing/")
+    print("  PyPI project name : weHateTP")
+    print("  Owner             : SlabyLol")
+    print("  Repository        : weHateTP")
+    print("  Workflow name     : publish-pypi.yml")
+    print("  Environment name  : pypi")
+    print("  GitHub → Settings → Environments → create 'pypi'")
+    print("  Then re-run the workflow")
     return 0
 
 
@@ -156,21 +149,15 @@ def cmd_start(args):
     out = Path(".github") / "workflows"
     out.mkdir(parents=True, exist_ok=True)
     (out / "publish-pypi.yml").write_text(generate_pypi_oidc_workflow(cfg), encoding="utf-8")
-    (out / "oidc-deploy.yml").write_text(generate_oidc_deploy_workflow(cfg), encoding="utf-8")
-    print(c(f"PyPI OIDC  -> {out / 'publish-pypi.yml'}", Color.GREEN, Color.BOLD))
-    print(c(f"Deploy OIDC -> {out / 'oidc-deploy.yml'}", Color.GREEN, Color.BOLD))
+    print(c(f"PyPI OIDC -> {out / 'publish-pypi.yml'}", Color.GREEN, Color.BOLD))
     print()
-    print(c("-- weHateTP status --", Color.CYAN, Color.BOLD))
-    print(c("  inject     : yes", Color.GREEN))
-    print(c("  config     : weHateTP.yml", Color.GREEN))
-    print(c("  pypi oidc  : publish-pypi.yml", Color.GREEN))
-    print()
-    print(c("PyPI Trusted Publishing:", Color.CYAN, Color.BOLD))
-    print("  1. https://pypi.org/manage/account/publishing/")
-    print(f"  2. Owner={gh.get('owner','SlabyLol')} Repo={gh.get('repo','weHateTP')}")
-    print("     Workflow=publish-pypi.yml Environment=pypi")
-    print("  3. GitHub Environment pypi")
-    print("  4. Create a Release -> publishes via OIDC")
+    print(c("PyPI Trusted Publishing – EXACT values:", Color.CYAN, Color.BOLD))
+    print("  https://pypi.org/manage/account/publishing/")
+    print("  PyPI project name : weHateTP")
+    print("  Owner             : SlabyLol")
+    print("  Repository        : weHateTP")
+    print("  Workflow name     : publish-pypi.yml")
+    print("  Environment name  : pypi")
     print()
     Typewriter(cps=18, variance=0.3).write(c("weHateTP is live. TypeBot standing by.", Color.GREEN, Color.BOLD))
     print()
@@ -178,7 +165,7 @@ def cmd_start(args):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="weHateTP", description="TypeBot · weHateTP – inject, typewriter, PyPI OIDC")
+    parser = argparse.ArgumentParser(prog="weHateTP", description="TypeBot · weHateTP")
     parser.add_argument("--version", action="version", version=f"weHateTP {__version__}")
     parser.add_argument("-c", "--config", metavar="PATH")
     sub = parser.add_subparsers(dest="command", required=True)
