@@ -79,9 +79,7 @@ github:
 
 
 def generate_pypi_oidc_workflow(cfg: Dict[str, Any]) -> str:
-    gh = cfg.get("github", {})
     pypi = cfg.get("pypi", {})
-    branch = gh.get("branch", "main")
     py_ver = pypi.get("python_version", "3.11")
     return f"""name: Publish to PyPI (OIDC)
 
@@ -91,7 +89,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
@@ -99,16 +96,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "{py_ver}"
-      - name: Install build tools
-        run: pip install build
-      - name: Build package
-        run: python -m build
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - run: pip install build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
@@ -120,43 +113,10 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
-      - name: Publish to PyPI (Trusted Publishing / OIDC)
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-"""
-
-
-def generate_oidc_deploy_workflow(cfg: Dict[str, Any]) -> str:
-    gh = cfg.get("github", {})
-    branch = gh.get("branch", "main")
-    return f"""name: OIDC Deploy
-
-on:
-  push:
-    branches: ["{branch}"]
-  workflow_dispatch:
-
-permissions:
-  id-token: write
-  contents: read
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/GitHubActionsRole
-          role-session-name: weHateTP-session
-          aws-region: us-east-1
-      - name: Verify identity
-        run: |
-          echo "OIDC assumed"
-          aws sts get-caller-identity || true
 """
