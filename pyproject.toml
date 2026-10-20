@@ -4,13 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "weHateTP"
-version = "1.4.0"
+version = "1.4.1"
 description = "TypeBot + PyPI OIDC + inject – By DarkFox"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [{name = "DarkFox"}]
-dependencies = ["PyYAML>=6.0"]
+keywords = ["typewriter", "typebot", "inject", "oidc", "cli"]
+dependencies = []
+
+[project.optional-dependencies]
+yaml = ["PyYAML>=6.0"]
 
 [project.scripts]
 weHateTP = "weHateTP.cli:main"
