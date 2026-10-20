@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "weHateTP"
-version = "1.5.0"
+version = "1.5.1"
 description = "TypeBot LIVE – Python talks to the browser – By DarkFox"
 readme = "README.md"
 requires-python = ">=3.8"
