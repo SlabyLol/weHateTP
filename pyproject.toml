@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "weHateTP"
-version = "1.4.1"
+version = "1.4.2"
 description = "TypeBot + PyPI OIDC + inject – By DarkFox"
 readme = "README.md"
 requires-python = ">=3.8"

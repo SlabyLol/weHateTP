@@ -3,7 +3,7 @@ from .warning import countdown_warning
 from .config import load_config, save_example_config
 from .inject import get_inject_script, get_bookmarklet
 
-__version__ = "1.4.1"
+__version__ = "1.4.2"
 __all__ = [
     "Typewriter",
     "typewrite",
