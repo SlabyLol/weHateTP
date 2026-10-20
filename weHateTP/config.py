@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -10,12 +11,13 @@ except ImportError:
     yaml = None
 
 DEFAULT_CONFIG_NAME = "weHateTP.yml"
+DEFAULT_JSON_NAME = "weHateTP.json"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "typewriter": {"cps": 14.0, "variance": 0.4, "newline_pause": 0.2, "punctuation_pause": 0.15},
     "warning": {"seconds": 3, "message": "TypeBot ACTIVE – By DarkFox", "final_message": "Ready."},
     "inject": {"duration_ms": 5000, "label": "TypeBot", "author": "By DarkFox"},
-    "pypi": {"package_name": "weHateTP", "python_version": "3.11", "oidc": True},
+    "pypi": {"package_name": "weHateTP", "python_version": "3.12", "oidc": True},
     "github": {"owner": "SlabyLol", "repo": "weHateTP", "branch": "main"},
 }
 
@@ -23,64 +25,71 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 def _find_config(start: Optional[str] = None) -> Optional[Path]:
     current = Path(start or os.getcwd()).resolve()
     for parent in [current, *current.parents]:
-        candidate = parent / DEFAULT_CONFIG_NAME
-        if candidate.is_file():
-            return candidate
+        for name in (DEFAULT_CONFIG_NAME, DEFAULT_JSON_NAME):
+            candidate = parent / name
+            if candidate.is_file():
+                return candidate
     return None
 
 
 def load_config(path: Optional[str] = None) -> Dict[str, Any]:
     cfg = {k: (v.copy() if isinstance(v, dict) else v) for k, v in DEFAULT_CONFIG.items()}
-    if yaml is None:
-        return cfg
     config_path = Path(path) if path else _find_config()
-    if config_path and config_path.is_file():
-        with open(config_path, encoding="utf-8") as f:
-            user = yaml.safe_load(f) or {}
-        for section, values in user.items():
-            if section in cfg and isinstance(cfg[section], dict) and isinstance(values, dict):
-                cfg[section].update(values)
-            else:
-                cfg[section] = values
+    if not config_path or not config_path.is_file():
+        return cfg
+    text = config_path.read_text(encoding="utf-8")
+    user: Dict[str, Any] = {}
+    if config_path.suffix in (".yml", ".yaml") and yaml is not None:
+        user = yaml.safe_load(text) or {}
+    else:
+        try:
+            user = json.loads(text)
+        except json.JSONDecodeError:
+            if yaml is not None:
+                user = yaml.safe_load(text) or {}
+    for section, values in user.items():
+        if section in cfg and isinstance(cfg[section], dict) and isinstance(values, dict):
+            cfg[section].update(values)
+        else:
+            cfg[section] = values
     return cfg
 
 
 def save_example_config(path: Optional[str] = None) -> Path:
-    if yaml is None:
-        raise RuntimeError("PyYAML required: pip install pyyaml")
-    target = Path(path or DEFAULT_CONFIG_NAME)
-    target.write_text("""typewriter:
-  cps: 14.0
-  variance: 0.4
-  newline_pause: 0.2
-  punctuation_pause: 0.15
+    if path:
+        target = Path(path)
+    elif yaml is not None:
+        target = Path(DEFAULT_CONFIG_NAME)
+    else:
+        target = Path(DEFAULT_JSON_NAME)
 
-warning:
-  seconds: 3
-  message: "TypeBot ACTIVE – By DarkFox"
-  final_message: "Ready."
+    data = {
+        "typewriter": DEFAULT_CONFIG["typewriter"],
+        "warning": DEFAULT_CONFIG["warning"],
+        "inject": DEFAULT_CONFIG["inject"],
+        "pypi": DEFAULT_CONFIG["pypi"],
+        "github": DEFAULT_CONFIG["github"],
+    }
 
-inject:
-  duration_ms: 5000
-  label: TypeBot
-  author: "By DarkFox"
-
-pypi:
-  package_name: weHateTP
-  python_version: "3.11"
-  oidc: true
-
-github:
-  owner: SlabyLol
-  repo: weHateTP
-  branch: main
-""", encoding="utf-8")
+    if target.suffix in (".yml", ".yaml") and yaml is not None:
+        target.write_text(
+            "typewriter:\n  cps: 14.0\n  variance: 0.4\n  newline_pause: 0.2\n  punctuation_pause: 0.15\n\n"
+            "warning:\n  seconds: 3\n  message: \"TypeBot ACTIVE – By DarkFox\"\n  final_message: \"Ready.\"\n\n"
+            "inject:\n  duration_ms: 5000\n  label: TypeBot\n  author: \"By DarkFox\"\n\n"
+            "pypi:\n  package_name: weHateTP\n  python_version: \"3.12\"\n  oidc: true\n\n"
+            "github:\n  owner: SlabyLol\n  repo: weHateTP\n  branch: main\n",
+            encoding="utf-8",
+        )
+    else:
+        if target.suffix in (".yml", ".yaml"):
+            target = target.with_suffix(".json")
+        target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return target.resolve()
 
 
 def generate_pypi_oidc_workflow(cfg: Dict[str, Any]) -> str:
     pypi = cfg.get("pypi", {})
-    py_ver = pypi.get("python_version", "3.11")
+    py_ver = pypi.get("python_version", "3.12")
     return f"""name: Publish to PyPI (OIDC)
 
 on:
@@ -90,6 +99,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build:
@@ -109,9 +119,9 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    environment: pypi
     permissions:
       id-token: write
+      contents: read
     steps:
       - uses: actions/download-artifact@v4
         with:
