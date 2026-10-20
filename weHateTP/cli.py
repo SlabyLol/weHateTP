@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -11,7 +12,42 @@ from .typewriter import Color, Typewriter, c
 from .warning import countdown_warning
 
 
-def _ask_yn(prompt: str) -> bool:
+def _copy_clipboard(text: str) -> bool:
+    try:
+        if sys.platform == "win32":
+            p = subprocess.run(
+                ["clip"],
+                input=text.encode("utf-16-le"),
+                check=False,
+                capture_output=True,
+            )
+            return p.returncode == 0
+        if sys.platform == "darwin":
+            p = subprocess.run(["pbcopy"], input=text.encode(), check=False)
+            return p.returncode == 0
+        p = subprocess.run(
+            ["xclip", "-selection", "clipboard"],
+            input=text.encode(),
+            check=False,
+            capture_output=True,
+        )
+        if p.returncode == 0:
+            return True
+        p = subprocess.run(
+            ["xsel", "--clipboard", "--input"],
+            input=text.encode(),
+            check=False,
+            capture_output=True,
+        )
+        return p.returncode == 0
+    except OSError:
+        return False
+
+
+def _ask_yn(prompt: str, auto_yes: bool = False) -> bool:
+    if auto_yes:
+        print(c(prompt + "y", Color.YELLOW, Color.BOLD))
+        return True
     while True:
         try:
             answer = input(c(prompt, Color.YELLOW, Color.BOLD)).strip().lower()
@@ -19,11 +55,34 @@ def _ask_yn(prompt: str) -> bool:
             print()
             print(c("Aborted.", Color.RED))
             raise SystemExit(1)
-        if answer in ("y", "yes"):
+        if answer in ("y", "yes", ""):
             return True
         if answer in ("n", "no"):
             return False
         print(c("Please answer y or n.", Color.RED))
+
+
+def _print_inject(script: str) -> None:
+    path = Path("typebot-inject.js")
+    path.write_text(script + "\n", encoding="utf-8")
+    copied = _copy_clipboard(script)
+    print()
+    print(c("=" * 56, Color.RED))
+    print(c("  TypeBot inject script", Color.RED, Color.BOLD))
+    print(c("=" * 56, Color.RED))
+    print()
+    print(script)
+    print()
+    print(c(f"Saved: {path.resolve()}", Color.GREEN))
+    if copied:
+        print(c("Copied to clipboard – paste in browser (Ctrl+V)", Color.GREEN, Color.BOLD))
+    print()
+    print(c("How to inject:", Color.CYAN, Color.BOLD))
+    print("  1. Open the website tab you want")
+    print("  2. Press F12  →  Console")
+    print("  3. Paste (Ctrl+V) and press Enter")
+    print("  4. Red TypeBot box appears top-right for 5 seconds")
+    print()
 
 
 def cmd_type(args):
@@ -50,25 +109,27 @@ def cmd_warn(args):
     w = cfg.get("warning", {})
     countdown_warning(
         message=args.message or w.get("message", "TypeBot ACTIVE – By DarkFox"),
-        seconds=args.seconds or w.get("seconds", 3),
+        seconds=args.seconds if args.seconds is not None else w.get("seconds", 3),
         final_message=args.final or w.get("final_message", "Ready."),
     )
     return 0
 
 
 def cmd_init(args):
-    print(c(f"Config written: {save_example_config(args.output)}", Color.GREEN, Color.BOLD))
+    path = save_example_config(args.output)
+    print(c(f"Config written: {path}", Color.GREEN, Color.BOLD))
     return 0
 
 
 def cmd_connect(args):
     cfg = load_config(args.config)
     w = cfg.get("warning", {})
-    countdown_warning(
-        message=w.get("message", "GENERATING PYPI OIDC WORKFLOW"),
-        seconds=w.get("seconds", 3),
-        final_message="Generating…",
-    )
+    if not args.yes:
+        countdown_warning(
+            message=w.get("message", "GENERATING PYPI OIDC WORKFLOW"),
+            seconds=w.get("seconds", 3),
+            final_message="Generating…",
+        )
     out = Path(".github") / "workflows"
     out.mkdir(parents=True, exist_ok=True)
     pypi_wf = generate_pypi_oidc_workflow(cfg)
@@ -78,32 +139,30 @@ def cmd_connect(args):
         (out / "publish-pypi.yml").write_text(pypi_wf, encoding="utf-8")
         print(c(f"Wrote {out / 'publish-pypi.yml'}", Color.GREEN, Color.BOLD))
     print()
-    print(c("PyPI Trusted Publishing – EXACT values:", Color.CYAN, Color.BOLD))
+    print(c("PyPI Trusted Publishing:", Color.CYAN, Color.BOLD))
     print("  https://pypi.org/manage/account/publishing/")
-    print("  PyPI project name : weHateTP")
-    print("  Owner             : SlabyLol")
-    print("  Repository        : weHateTP")
-    print("  Workflow name     : publish-pypi.yml")
-    print("  Environment name  : pypi")
-    print("  GitHub → Settings → Environments → create 'pypi'")
-    print("  Then re-run the workflow")
+    print("  Owner=SlabyLol  Repo=weHateTP  Workflow=publish-pypi.yml")
     return 0
 
 
 def cmd_inject(args):
     cfg = load_config(args.config)
     w = cfg.get("warning", {})
-    print(c("-- TypeBot Inject --", Color.RED, Color.BOLD))
-    while not _ask_yn("Inject into the currently selected page? [y/n] "):
-        print(c("Asking again...", Color.DIM))
-    countdown_warning(
-        message=w.get("message", "PREPARING INJECT"),
-        seconds=w.get("seconds", 3),
-        final_message="Script ready.",
-    )
     print()
-    print(get_inject_script(cfg))
+    print(c("── TypeBot Inject ──", Color.RED, Color.BOLD))
+    print(c("  TypeBot  |  By DarkFox  |  top-right 5s", Color.RED))
     print()
+    if not args.yes:
+        while not _ask_yn("Prepare inject script for this PC? [y/n] "):
+            print(c("Asking again…", Color.DIM))
+    if not args.no_warn:
+        countdown_warning(
+            message=w.get("message", "PREPARING INJECT"),
+            seconds=0 if args.yes else w.get("seconds", 3),
+            final_message="Script ready.",
+        )
+    script = get_inject_script(cfg)
+    _print_inject(script)
     return 0
 
 
@@ -118,80 +177,86 @@ def cmd_start(args):
     print(c("            By DarkFox", Color.DIM))
     print(c("========================================", Color.RED, Color.BOLD))
     print()
-    Typewriter(cps=22, variance=0.25).write(c("Connecting to weHateTP...", Color.CYAN))
+    try:
+        Typewriter(cps=28, variance=0.2).write(c("Connecting to weHateTP…", Color.CYAN))
+    except Exception:
+        print(c("Connecting to weHateTP…", Color.CYAN))
     print(c(f"  package  : {pypi.get('package_name', 'weHateTP')}", Color.GREEN))
     print(c(f"  github   : {gh.get('owner', 'SlabyLol')}/{gh.get('repo', 'weHateTP')}", Color.GREEN))
-    print(c(f"  pypi oidc: {pypi.get('oidc', True)}", Color.GREEN))
     print(c(f"  version  : {__version__}", Color.GREEN))
     print()
-    if not Path("weHateTP.yml").exists():
-        save_example_config("weHateTP.yml")
-        print(c("Created weHateTP.yml", Color.GREEN))
-        cfg = load_config("weHateTP.yml")
+    if not Path("weHateTP.yml").exists() and not Path("weHateTP.json").exists():
+        p = save_example_config()
+        print(c(f"Created config: {p.name}", Color.GREEN))
+        cfg = load_config(str(p))
         w = cfg.get("warning", {})
     else:
-        print(c("Loaded weHateTP.yml", Color.GREEN))
+        print(c("Loaded config", Color.GREEN))
     print()
-    while not _ask_yn("Inject TypeBot into the selected page? [y/n] "):
-        print(c("Asking again...", Color.DIM))
-        print()
-    countdown_warning(
-        message=w.get("message", "TypeBot ACTIVE – By DarkFox"),
-        seconds=w.get("seconds", 3),
-        final_message=w.get("final_message", "Ready."),
-    )
+    if not args.yes:
+        while not _ask_yn("Prepare TypeBot inject script? [y/n] "):
+            print(c("Asking again…", Color.DIM))
+            print()
+    if not args.no_warn:
+        countdown_warning(
+            message=w.get("message", "TypeBot ACTIVE – By DarkFox"),
+            seconds=0 if args.yes else w.get("seconds", 3),
+            final_message=w.get("final_message", "Ready."),
+        )
     script = get_inject_script(cfg)
-    Path("typebot-inject.js").write_text(script + "\n", encoding="utf-8")
-    print(c("Inject script -> typebot-inject.js", Color.GREEN, Color.BOLD))
-    print()
-    print(script)
-    print()
+    _print_inject(script)
     out = Path(".github") / "workflows"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "publish-pypi.yml").write_text(generate_pypi_oidc_workflow(cfg), encoding="utf-8")
-    print(c(f"PyPI OIDC -> {out / 'publish-pypi.yml'}", Color.GREEN, Color.BOLD))
+    wf = out / "publish-pypi.yml"
+    wf.write_text(generate_pypi_oidc_workflow(cfg), encoding="utf-8")
+    print(c(f"PyPI workflow: {wf}", Color.GREEN))
     print()
-    print(c("PyPI Trusted Publishing – EXACT values:", Color.CYAN, Color.BOLD))
-    print("  https://pypi.org/manage/account/publishing/")
-    print("  PyPI project name : weHateTP")
-    print("  Owner             : SlabyLol")
-    print("  Repository        : weHateTP")
-    print("  Workflow name     : publish-pypi.yml")
-    print("  Environment name  : pypi")
-    print()
-    Typewriter(cps=18, variance=0.3).write(c("weHateTP is live. TypeBot standing by.", Color.GREEN, Color.BOLD))
+    print(c("weHateTP is live. TypeBot standing by.", Color.GREEN, Color.BOLD))
     print()
     return 0
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="weHateTP", description="TypeBot · weHateTP")
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("-c", "--config", metavar="PATH")
+    common.add_argument("-y", "--yes", action="store_true", help="Skip y/n prompts")
+    common.add_argument("--no-warn", action="store_true", help="Skip 3-2-1 countdown")
+    parser = argparse.ArgumentParser(
+        prog="weHateTP",
+        description="TypeBot · weHateTP – inject, typewriter, PyPI OIDC",
+        parents=[common],
+    )
     parser.add_argument("--version", action="version", version=f"weHateTP {__version__}")
-    parser.add_argument("-c", "--config", metavar="PATH")
-    sub = parser.add_subparsers(dest="command", required=True)
-    p = sub.add_parser("type")
+    sub = parser.add_subparsers(dest="command")
+    p = sub.add_parser("type", help="Typewriter effect", parents=[common])
     p.add_argument("text", nargs="?", default=None)
     p.add_argument("-f", "--file")
     p.add_argument("-s", "--speed", type=float)
     p.add_argument("-v", "--variance", type=float)
     p.add_argument("--no-newline", action="store_true")
     p.set_defaults(func=cmd_type)
-    p = sub.add_parser("warn")
+    p = sub.add_parser("warn", help="3-2-1 countdown", parents=[common])
     p.add_argument("-m", "--message")
     p.add_argument("-s", "--seconds", type=int)
     p.add_argument("--final")
     p.set_defaults(func=cmd_warn)
-    p = sub.add_parser("init")
-    p.add_argument("-o", "--output", default="weHateTP.yml")
+    p = sub.add_parser("init", help="Write config file", parents=[common])
+    p.add_argument("-o", "--output", default=None)
     p.set_defaults(func=cmd_init)
-    p = sub.add_parser("connect")
+    p = sub.add_parser("connect", help="Generate PyPI OIDC workflow", parents=[common])
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(func=cmd_connect)
-    p = sub.add_parser("inject")
+    p = sub.add_parser("inject", help="TypeBot inject script + clipboard", parents=[common])
     p.set_defaults(func=cmd_inject)
-    p = sub.add_parser("start")
+    p = sub.add_parser("start", help="Full start: inject + config", parents=[common])
     p.set_defaults(func=cmd_start)
     args = parser.parse_args(argv)
+    if not getattr(args, "command", None):
+        if not hasattr(args, "yes"):
+            args.yes = True
+        if not hasattr(args, "no_warn"):
+            args.no_warn = False
+        return cmd_start(args)
     return args.func(args)
 
 
